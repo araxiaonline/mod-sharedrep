@@ -14,22 +14,44 @@ class SharedRepPlayerScript : public PlayerScript
 
         void OnLogin(Player* player) override
         {
+            Msg(player, "This server is running the |cff4CFF00ShareRep |rmodule.");
 
-            ChatHandler(player->GetSession()).SendSysMessage("This server is running the ShareRep module.");
-
-            LOG_INFO("sharedrep", "OnLogin");
             uint32 accountId = player->GetSession()->GetAccountId();
             ObjectGuid playerGuid = player->GetGUID();
             std::string hordeInClause = "(2, 5, 6, 8, 10)";
             std::string allianceInClause = "(1, 3, 4, 7, 11)";
+            std::string factionClause = hordeInClause;
 
             uint32 faction_aldor = 932;
             uint32 faction_scryer = 934;
             uint32 faction_sporeggar = 970;
             uint32 faction_theashenverdict = 1119;
+            uint32 playerStandingAldor = 0;
+            uint32 playerStandingScryer = 0;
+            uint32 accountStandingAldor = 0;
+            uint32 accountStandingScryer = 0;
+            std::string playerDetails = " for " + player->GetName() + "(" + std::to_string(playerGuid.GetRawValue()) + ")";
 
-            std::string factionClause = hordeInClause;
+            FactionEntry const* factionEntryAldor = sFactionStore.LookupEntry(faction_aldor);
+            if (!factionEntryAldor)
+            {
+                LogDebug("Faction not found: " + std::to_string(faction_aldor) + playerDetails);
+            } else {
+                playerStandingAldor = player->GetReputationMgr().GetReputation(factionEntryAldor);
+            }
 
+            FactionEntry const* factionEntryScryer = sFactionStore.LookupEntry(faction_scryer);
+            if (!factionEntryScryer)
+            {
+                LogDebug("Faction not found: " + std::to_string(faction_scryer) + playerDetails);
+            } else {
+                playerStandingScryer = player->GetReputationMgr().GetReputation(factionEntryScryer);
+            }
+
+            if (player->GetTeamId() == TEAM_ALLIANCE)
+            {
+                factionClause = allianceInClause;
+            }
 
             std::string query = R"(
                 SELECT
@@ -65,28 +87,25 @@ class SharedRepPlayerScript : public PlayerScript
                 return;
             }
 
-            float standingAldor = 0;
-            float standingScryer = 0;
-
             do
             {
                 Field* row = result->Fetch();
 
                 uint32 repGuid = row[0].Get<uint32>();
                 uint32 repFaction = row[1].Get<uint32>();
-                float repStanding = row[2].Get<float>();
+                uint32 repStanding = row[2].Get<uint32>();
 
                 if (repGuid == playerGuid.GetRawValue()) continue;
 
                 if (repFaction == faction_aldor)
                 {
-                    standingAldor = repStanding;
+                    accountStandingAldor = repStanding;
                     continue;
                 }
 
                 if (repFaction == faction_scryer)
                 {
-                    standingScryer = repStanding;
+                    accountStandingScryer = repStanding;
                     continue;
                 }
 
@@ -94,27 +113,43 @@ class SharedRepPlayerScript : public PlayerScript
 
                 if (!factionEntry)
                 {
-                    LOG_DEBUG("sharedrep", "Faction not found: " + std::to_string(repFaction));
+                    LogDebug("Faction not found: " + std::to_string(repFaction) + playerDetails);
                     continue;
                 }
+
+                std::string factionName = std::string(factionEntry->name[LOCALE_enUS]);
 
                 float currentStanding = player->GetReputationMgr().GetReputation(factionEntry);
                 if (repStanding <= currentStanding)
                 {
-                    LOG_DEBUG("sharedrep",
-                        "Standing not higher for faction(" + std::to_string(repFaction) + ")");
+                    LogDebug("Standing not higher for "
+                        + factionName  + " (" + std::to_string(repFaction) + ")"
+                        + playerDetails);
                     continue;
                 }
 
                 player->GetReputationMgr().SetOneFactionReputation(factionEntry, float(repStanding), false);
                 player->GetReputationMgr().SendState(player->GetReputationMgr().GetState(factionEntry));
-                LOG_DEBUG("sharedrep",
-                    "Faction(" + std::to_string(repFaction) + ") reputation set: "
-                    + std::to_string(repStanding)
-                );
+                LogDebug("Reputation increased for "
+                    + factionName
+                    + " to " + std::to_string(repStanding) + playerDetails);
+
+                Msg(player, "Reputation increased for "
+                    + factionName
+                    + " to " + std::to_string(repStanding));
 
             } while (result->NextRow());
 
+        }
+
+        void Msg(Player* player, std::string msg)
+        {
+            ChatHandler(player->GetSession()).SendSysMessage(msg);
+        }
+
+        void LogDebug(std::string msg)
+        {
+            LOG_DEBUG("sharedrep", msg);
         }
 };
 
