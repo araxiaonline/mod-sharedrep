@@ -1,0 +1,8 @@
+
+[worldserver]
+
+ModSharedLoot.Enabled = 1
+
+Appender.SharedRepLog=2,4,0,sharedrep.log,w
+Appender.SharedRepConsole=1,4,0,"1 9 3 6 5 8"
+Logger.sharedrep=5,SharedRepLog SharedRepConsole
