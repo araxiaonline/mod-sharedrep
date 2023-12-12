@@ -62,7 +62,7 @@ class SharedRepPlayerScript : public PlayerScript
                     guid
                     , faction
                     , MAX(standing)
-                FROM acore_characters.character_reputation
+                FROM character_reputation
                 WHERE standing != 0
                 AND GUID IN (
                     SELECT
